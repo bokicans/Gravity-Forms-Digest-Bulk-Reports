@@ -1,10 +1,10 @@
 <?php
 	/*
 		Plugin Name: Gravity Forms Digest Bulk Reports
-		Author: Gennady Kovshenin
+		Author: Gennady Kovshenin modified by Bojan
 		Description: Generates bulk reports for submitted form entries and e-mails these as a digest to specific addresses
-		Version: 0.3.0
-		Author URI: http://codeseekah.com
+		Version: 0.3.1
+		GitHub Plugin URI: https://github.com/bokicans/Gravity-Forms-Digest-Bulk-Reports
 	*/
 
 	class GFDigestNotifications {
@@ -33,6 +33,16 @@
 
 		/** Activation housekeeping */
 		public function activate() {
+
+			function add_interval_twice_a_month($schedules) {
+				$schedules['monthly_twice'] = array(
+					'interval' => 2635200 / 2,
+					'display' => __('Twice a month')
+				);
+				return $schedules;
+			}
+			add_filter( 'cron_schedules', 'add_interval_twice_a_month'); 
+
 			$this->reschedule_existing();
 		}
 
@@ -429,6 +439,8 @@
 					$new_csv_attachment = $csv_attachment . '-' . date( 'YmdHis' ) . '.csv';
 					rename( $csv_attachment, $new_csv_attachment );
 
+					$from = 'From: ' . strtoupper(preg_replace('/www\./i', '', $_SERVER['SERVER_NAME'])) . ' <noreply@' . preg_replace('/www\./i', '', $_SERVER['SERVER_NAME']) . '>';
+
 					wp_mail(
 						$email,
 						apply_filters(
@@ -479,6 +491,8 @@
 
 					if ( !$to )
 						$to = $from;
+
+					$from = 'From: ' . strtoupper(preg_replace('/www\./i', '', $_SERVER['SERVER_NAME'])) . ' <noreply@' . preg_replace('/www\./i', '', $_SERVER['SERVER_NAME']) . '>';
 
 					wp_mail(
 						$email,
