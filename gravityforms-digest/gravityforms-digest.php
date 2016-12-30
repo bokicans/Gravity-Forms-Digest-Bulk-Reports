@@ -3,7 +3,7 @@
 		Plugin Name: Gravity Forms Digest Bulk Reports
 		Author: Path Interactive (orig. by Gennady Kovshenin)
 		Description: Generates bulk reports for submitted form entries and e-mails these as a digest to specific addresses
-		Version: 0.3.4
+		Version: 0.3.5
 		GitHub Plugin URI: https://github.com/bokicans/Gravity-Forms-Digest-Bulk-Reports
 		GitHub Branch: master
 	*/
@@ -28,13 +28,7 @@
 			if ( !isset( $_GET['page']) || $_GET['page'] != 'gf_edit_forms' )
 				return; // Nothing else to do, we're not on the setting page
 
-			add_action( 'init', array( $this, 'init' ) );
-			add_action( 'plugins_loaded', array( $this, 'plugins_loaded' ) );
-		}
-
-		/** Activation housekeeping */
-		public function activate() {
-
+			// add interval
 			function add_interval_twice_a_month($schedules) {
 				$schedules['monthly_twice'] = array(
 					'interval' => 2635200 / 2,
@@ -44,6 +38,12 @@
 			}
 			add_filter( 'cron_schedules', 'add_interval_twice_a_month'); 
 
+			add_action( 'init', array( $this, 'init' ) );
+			add_action( 'plugins_loaded', array( $this, 'plugins_loaded' ) );
+		}
+
+		/** Activation housekeeping */
+		public function activate() {
 			$this->reschedule_existing();
 		}
 
