@@ -3,7 +3,7 @@
 		Plugin Name: Gravity Forms Digest Bulk Reports
 		Author: Path Interactive (orig. by Gennady Kovshenin)
 		Description: Generates bulk reports for submitted form entries and e-mails these as a digest to specific addresses
-		Version: 0.3.7
+		Version: 0.3.8
 		GitHub Plugin URI: https://github.com/bokicans/Gravity-Forms-Digest-Bulk-Reports
 		GitHub Branch: master
 	*/
@@ -338,6 +338,7 @@
 			/* Gather all the leads and update the last_sent counters */
 			foreach ( $forms as $i => $form ) {
 				$last_sent = isset( $form['digests']['digest_last_sent'] ) ? $form['digests']['digest_last_sent'] : 0;
+$last_sent = 0;
 
 				/* Retrieve form entries newer than the last sent ID */
 				global $wpdb;
@@ -453,6 +454,113 @@
 
 					if ( !defined( 'GF_DIGEST_DOING_TESTS' ) )
 						unlink( $new_csv_attachment );
+
+
+
+
+
+				} else if ( defined( 'GF_DIGESTS_AS_XLSX' ) && GF_DIGESTS_AS_XLSX ) {
+
+					error_log('GF_DIGESTS_AS_XLSX started');
+
+					include_once('xlsxwriter.class.php');
+
+					/* XLSX e-mails */
+					$report = 'Report generated at ' . date( 'Y-m-d H:i:s' ) . "\n";
+					$xlsx_attachment = tempnam( sys_get_temp_dir(), '' );
+					//$xlsx = fopen( $xlsx_attachment, 'w' );
+$xlsx = new XLSXWriter();
+
+					$from = null; $to = null;
+
+					$names = array();
+					foreach ( $form_ids as $form_id ) {
+						$form = $forms[$form_id];
+
+						$names []= $form['title'];
+						//fputcsv( $xlsx, array( 'Form: ' . $form['title'] . ' (#' . $form_id . ')' ) );
+
+						$headers = array( 'Date Submitted' );
+
+						if ( $digest_export_all_fields ) {
+							foreach ( $form['fields'] as $field )
+								if ( $field['label'] ) $headers []= $field['label'];
+						} else {
+							foreach ( $form['fields'] as $field )
+								if ( $field['label'] && in_array( $field['id'], $digest_export_field_list ) ) $headers []= $field['label'];
+						}
+
+						$xlsx_sheet[$form_id] = $headers;
+						//fputcsv( $csv, $headers );
+
+
+						if ( !$form['leads'] ) {
+							/* No new entries (but user has opted to receive digests always) */
+							$xlsx_sheet[$form_id] = array( __( 'No new entries.', self::$textdomain ) );
+						} else {
+							foreach ( $form['leads'] as $lead ) {
+								$data = array();
+
+								$lead_data = RGFormsModel::get_lead( $lead->id );
+								$data []= $lead->date_created;
+
+								if ( !$from )
+									$from = $lead->date_created;
+								else
+									$to = $lead->date_created;
+
+								foreach ( $form['fields'] as $field ) {
+									if ( !$field['label'] ) continue;
+									if ( !$digest_export_all_fields && !in_array( $field['id'], $digest_export_field_list ) ) continue;
+									$raw_data = RGFormsModel::get_lead_field_value( $lead_data, $field );
+									if( !is_array( $raw_data ) ) $data []= $raw_data;
+									else $data []= implode( ', ', array_filter( $raw_data ) );
+								}
+
+								//fputcsv( $csv, $data );
+							}
+						}
+
+						//fputcsv( $csv, array( '--' ) ); /* new line */
+					}
+
+					if ( !$to )
+						$to = $from;
+
+					$report .= 'Contains entries from ' . $from . " to $to\n";
+					$report .= 'See CSV attachment';
+
+					//fclose( $csv );
+					$new_csv_attachment = $csv_attachment . '-' . date( 'YmdHis' ) . '.csv';
+					//rename( $csv_attachment, $new_csv_attachment );
+
+$filename = "example.xlsx";
+header('Content-disposition: attachment; filename="'.XLSXWriter::sanitize_filename($filename).'"');
+header("Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+header('Content-Transfer-Encoding: binary');
+header('Cache-Control: must-revalidate');
+header('Pragma: public');
+
+$xlsx->writeToStdOut();
+
+error_log(print_r($lead_data, true));
+exit;
+
+
+					$from = 'From: ' . strtoupper(preg_replace('/www\./i', '', $_SERVER['SERVER_NAME'])) . ' <noreply@' . preg_replace('/www\./i', '', $_SERVER['SERVER_NAME']) . '>';
+/*
+					wp_mail(
+						$email,
+						apply_filters(
+							'gf_digest_email_subject',
+							'Form Digest Report (XLSX): ' . implode( ', ', $names ),
+							$names, array( $from, $to ), $new_csv_attachment ),
+						$report, null, array( $new_csv_attachment )
+					);
+					*/
+
+					if ( !defined( 'GF_DIGEST_DOING_TESTS' ) )
+						unlink( $new_csv_attachment );
 				} else {
 					/* Regular e-mails */
 					$report = 'Report generated at ' . date( 'Y-m-d H:i:s' ) . "\n";
@@ -480,8 +588,8 @@
 								else
 									$to = $lead->date_created;
 
-								error_log(print_r($lead_data, true));
-								exit;
+error_log(print_r($lead_data, true));
+exit;
 
 								foreach ( $lead_data as $index => $data ) {
 									if ( !is_numeric( $index ) || !$data ) continue;
@@ -493,7 +601,7 @@
 						}
 					}
 
-					include_once('xlsxwriter.class.php');
+					
 
 
 					if ( !$to )
