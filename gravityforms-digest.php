@@ -3,7 +3,7 @@
 		Plugin Name: Gravity Forms Digest Bulk Reports
 		Author: Path Interactive (orig. by Gennady Kovshenin)
 		Description: Generates bulk reports for submitted form entries and e-mails these as a digest to specific addresses
-		Version: 0.4.0
+		Version: 0.4.1
 		GitHub Plugin URI: https://github.com/bokicans/Gravity-Forms-Digest-Bulk-Reports
 		GitHub Branch: master
 	*/
@@ -338,7 +338,7 @@
 			/* Gather all the leads and update the last_sent counters */
 			foreach ( $forms as $i => $form ) {
 				$last_sent = isset( $form['digests']['digest_last_sent'] ) ? $form['digests']['digest_last_sent'] : 0;
-$last_sent = 0;
+//$last_sent = 0;
 
 				/* Retrieve form entries newer than the last sent ID */
 				global $wpdb;
