@@ -3,6 +3,8 @@
  * @license MIT License
  * */
 
+if (!class_exists('ZipArchive')) { throw new Exception('ZipArchive not found'); }
+
 class XLSXWriter
 {
 	//http://www.ecma-international.org/publications/standards/Ecma-376.htm
@@ -631,8 +633,8 @@ class XLSXWriter
 	//------------------------------------------------------------------
 	public static function xmlspecialchars($val)
 	{
-		//note, badchars includes \t\n\r \x09\x0a\x0d
-		static $badchars = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f\x7f";
+		//note, badchars includes \t\n\r \x09\x0a\x0d (update: \x0a removed = \n)
+		static $badchars = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f\x7f";
 		static $goodchars = "                                 ";
 		return strtr(htmlspecialchars($val, ENT_QUOTES | ENT_XML1), $badchars, $goodchars);//strtr appears to be faster than str_replace
 	}

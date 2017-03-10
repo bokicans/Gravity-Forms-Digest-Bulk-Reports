@@ -3,7 +3,7 @@
 		Plugin Name: Gravity Forms Digest Bulk Reports
 		Author: Path Interactive (orig. by Gennady Kovshenin)
 		Description: Generates bulk reports for submitted form entries and e-mails these as a digest to specific addresses
-		Version: 0.3.8
+		Version: 0.4.0
 		GitHub Plugin URI: https://github.com/bokicans/Gravity-Forms-Digest-Bulk-Reports
 		GitHub Branch: master
 	*/
@@ -370,6 +370,8 @@ $last_sent = 0;
 				}
 			}
 
+			include_once('xlsxwriter.class.php');
+
 			/* Now, let's try and mail stuff */
 			foreach ( $emails as $email => $form_ids ) {
 
@@ -463,20 +465,23 @@ $last_sent = 0;
 
 					error_log('GF_DIGESTS_AS_XLSX started');
 
-					include_once('xlsxwriter.class.php');
+
 
 					/* XLSX e-mails */
 					$report = 'Report generated at ' . date( 'Y-m-d H:i:s' ) . "\n";
-					$xlsx_attachment = tempnam( sys_get_temp_dir(), '' );
+					//$xlsx_attachment = tempnam( sys_get_temp_dir(), '' );
 					//$xlsx = fopen( $xlsx_attachment, 'w' );
 $xlsx = new XLSXWriter();
 
 					$from = null; $to = null;
 
+//error_log(print_r($form_ids, true));
 					$names = array();
 					foreach ( $form_ids as $form_id ) {
 						$form = $forms[$form_id];
 
+
+error_log($form['title']);
 						$names []= $form['title'];
 						//fputcsv( $xlsx, array( 'Form: ' . $form['title'] . ' (#' . $form_id . ')' ) );
 
@@ -493,11 +498,17 @@ $xlsx = new XLSXWriter();
 						$xlsx_sheet[$form_id] = $headers;
 						//fputcsv( $csv, $headers );
 
+						$xlsx_data[$form_id]['title'] = $form['title'];
 
 						if ( !$form['leads'] ) {
 							/* No new entries (but user has opted to receive digests always) */
-							$xlsx_sheet[$form_id] = array( __( 'No new entries.', self::$textdomain ) );
+							$xlsx_data[$form_id]['data'][] = 'No new entries.';
 						} else {
+							
+							// labels as first row
+							$xlsx_data[$form_id]['data'][] = $xlsx_sheet[$form_id];
+
+
 							foreach ( $form['leads'] as $lead ) {
 								$data = array();
 
@@ -513,13 +524,43 @@ $xlsx = new XLSXWriter();
 									if ( !$field['label'] ) continue;
 									if ( !$digest_export_all_fields && !in_array( $field['id'], $digest_export_field_list ) ) continue;
 									$raw_data = RGFormsModel::get_lead_field_value( $lead_data, $field );
-									if( !is_array( $raw_data ) ) $data []= $raw_data;
-									else $data []= implode( ', ', array_filter( $raw_data ) );
+                                    if (($raw_data_unserialized = @unserialize($raw_data)) !== false ) {
+                                        $raw_data = $raw_data_unserialized;
+                                    }
+									if( !is_array( $raw_data ) )
+										$data []= $raw_data;
+									else {
+
+                                        //error_log('Tu...');
+                                       	// error_log(print_r($raw_data, true));
+										$raw_data2 = reset($raw_data);
+                                        if (!is_array($raw_data2))
+                                            $data []= implode( ', ', array_filter( $raw_data ) );
+                                        else {
+                                            $ser_data_row = array();
+                                            foreach ($raw_data as $raw_data_single => $raw_data_singlev)
+                                                if (is_array($raw_data_singlev)){
+                                                   // foreach ($raw_data_singlev as $rdsk => $rdsv) {
+                                                    $ser_data_row_v = '';
+													foreach ($raw_data_singlev as $rdsv) {
+//error_log(print_r($rdsv, true));
+                                                        $ser_data_row_v[] = @reset($rdsv);
+													}
+                                                    $ser_data_row[] = implode('; ', $ser_data_row_v);
+												}
+                                                else
+                                                    $ser_data_row[] = $raw_data_single . ": " . $raw_data_singlev;
+                                                
+                                            
+                                            $data []= implode( "\n",  $ser_data_row );
+                                        }
+                                    }   
 								}
 
-								//fputcsv( $csv, $data );
+								$xlsx_data[$form_id]['data'][] = $data;
 							}
 						}
+						//error_log(print_r($data, true));
 
 						//fputcsv( $csv, array( '--' ) ); /* new line */
 					}
@@ -530,37 +571,52 @@ $xlsx = new XLSXWriter();
 					$report .= 'Contains entries from ' . $from . " to $to\n";
 					$report .= 'See CSV attachment';
 
-					//fclose( $csv );
-					$new_csv_attachment = $csv_attachment . '-' . date( 'YmdHis' ) . '.csv';
-					//rename( $csv_attachment, $new_csv_attachment );
 
+					//fclose( $csv );
+					//$new_csv_attachment = $csv_attachment . '-' . date( 'YmdHis' ) . '.csv';
+					//rename( $csv_attachment, $new_csv_attachment );
+/*
 $filename = "example.xlsx";
 header('Content-disposition: attachment; filename="'.XLSXWriter::sanitize_filename($filename).'"');
 header("Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 header('Content-Transfer-Encoding: binary');
 header('Cache-Control: must-revalidate');
 header('Pragma: public');
+*/
+foreach($xlsx_data as $sheet) {
+    foreach($sheet['data'] as $row)
+    	$xlsx->writeSheetRow($sheet['title'], $row);
+}
 
-$xlsx->writeToStdOut();
+//error_log('names: ' . print_r($names, true));
+//error_log('$lead_data: ' . print_r($lead_data, true));
+//error_log('$xlsx_sheet: ' . print_r($xlsx_sheet, true));
+$upload_dir = wp_upload_dir();
+$report_filename = 'forms-digest-report-'.date( 'Y-m-d' ).'.xlsx';
+$report_dir = $upload_dir['basedir'] . '/forms-digest-reports';
+@mkdir($report_dir);
+//error_log($report_dir);
 
-error_log(print_r($lead_data, true));
-exit;
+$report_full = $report_dir . '/' . $report_filename;
+//error_log($report_full);
+$xlsx->writeToFile($report_full);
+
 
 
 					$from = 'From: ' . strtoupper(preg_replace('/www\./i', '', $_SERVER['SERVER_NAME'])) . ' <noreply@' . preg_replace('/www\./i', '', $_SERVER['SERVER_NAME']) . '>';
-/*
+
 					wp_mail(
 						$email,
 						apply_filters(
 							'gf_digest_email_subject',
 							'Form Digest Report (XLSX): ' . implode( ', ', $names ),
-							$names, array( $from, $to ), $new_csv_attachment ),
-						$report, null, array( $new_csv_attachment )
+							$names, array( $from, $to ), $report_full ),
+						$report, null, array( $report_full )
 					);
-					*/
+					
 
-					if ( !defined( 'GF_DIGEST_DOING_TESTS' ) )
-						unlink( $new_csv_attachment );
+					//if ( !defined( 'GF_DIGEST_DOING_TESTS' ) )
+					//	unlink( $report_full );
 				} else {
 					/* Regular e-mails */
 					$report = 'Report generated at ' . date( 'Y-m-d H:i:s' ) . "\n";
@@ -587,9 +643,6 @@ exit;
 									$from = $lead->date_created;
 								else
 									$to = $lead->date_created;
-
-error_log(print_r($lead_data, true));
-exit;
 
 								foreach ( $lead_data as $index => $data ) {
 									if ( !is_numeric( $index ) || !$data ) continue;
